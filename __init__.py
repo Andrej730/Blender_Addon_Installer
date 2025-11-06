@@ -20,13 +20,15 @@ import addon_utils
 import os, shutil
 import requests
 from urllib.parse import urlparse
-from io import BytesIO
-from zipfile import ZipFile
+from io import BytesIO, BufferedReader
+from zipfile import ZipFile, ZipInfo
+from typing import TYPE_CHECKING, Union, Any
+from collections.abc import Sequence
 
 from bpy.app.translations import pgettext_tip as tip_
 
 
-def get_bl_info(text):
+def get_bl_info(text: str) -> "dict[str, Any]":
 
     bl_idx = text.index("bl_info") # raise ValueError
     s_idx  = text.index("{", bl_idx)
@@ -38,7 +40,8 @@ def get_bl_info(text):
     return bl_info
 
 
-def resolve_url(url):
+def resolve_url(url: str) -> str:
+    """Resolve url to direct .zip/.py link if possible."""
 
     p_url = urlparse(url)
 
@@ -64,7 +67,7 @@ def resolve_url(url):
     return url
 
 
-def remove_file(path_base, fname):
+def remove_file(path_base: str, fname: str) -> None:
     f_full = os.path.join(path_base, fname)
     if os.path.exists(f_full):
         if os.path.isdir(f_full):
@@ -73,7 +76,7 @@ def remove_file(path_base, fname):
             os.remove(f_full)
 
 
-def filter_zipfile(zfile, zipname):
+def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
 
     # list .py files
     scripts = [zinfo for zinfo in zfile.filelist
@@ -116,7 +119,7 @@ def filter_zipfile(zfile, zipname):
         # use 'zipname' without .zip extension
         base_dir = os.path.splitext(zipname)[0]
 
-    file_to_extract = []
+    file_to_extract: "list[ZipInfo]" = []
     # only extract the parent directory of modules
     for zinfo in zfile.filelist:
         # if zinfo.is_dir():
@@ -138,12 +141,14 @@ def filter_zipfile(zfile, zipname):
 
     return file_to_extract
 
-def open_file(pyfile):
+def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
     """Returns filename, data(bytes if file is link else file object)"""
 
     content_types = ("text/plain", "application/zip", "application/octet-stream")
     file_types = (".py", ".zip",)
 
+    filename = None
+    blender_temp_dir: str = bpy.app.tempdir
     if pyfile.startswith("http://") or pyfile.startswith("https://"): # URL
 
         CACHE_FILENAME_FORMAT = "BLAI-{0}-{1}" # BLAI-HASH-filename
@@ -152,13 +157,13 @@ def open_file(pyfile):
         from hashlib import md5
         pyfile_hash = md5(bytes(pyfile, "utf8")).hexdigest()
 
-        cache_path = None
+        cache_path: Union[str, None] = None
         # check cache
         cache_path_prefix = CACHE_FILENAME_FORMAT.format(pyfile_hash, "")
-        for f in os.listdir(bpy.app.tempdir):
+        for f in os.listdir(blender_temp_dir):
             if f.startswith(cache_path_prefix) and not f.endswith(UNFINISHED_EXT):
                 filename = f[len(cache_path_prefix):]
-                cache_path = os.path.join(bpy.app.tempdir, f)
+                cache_path = os.path.join(blender_temp_dir, f)
                 break
 
         if not cache_path:
@@ -211,15 +216,16 @@ def open_file(pyfile):
         filename = os.path.basename(pyfile)
         data = open(pyfile, 'rb')
 
+    assert filename
     return filename, data
 
 
-def install_addon(pyfile, path_addons, overwrite=False, smart_extract=False):
+def install_addon(pyfile: str, path_addons: str, overwrite: bool = False, smart_extract: bool = False) -> "set[str]":
 
     filename, data = open_file(pyfile)
 
     ext = os.path.splitext(filename)[1]
-    addons_new = {}
+    addons_new: set[str] = set()
 
     if ext == ".py":
         if smart_extract:
@@ -278,7 +284,7 @@ def install_addon(pyfile, path_addons, overwrite=False, smart_extract=False):
 #########################################################################################
 
 
-def get_filename_from_url(url, req_headers=None, content_types=None, file_types=None):
+def get_filename_from_url(url: str, req_headers: "dict[str, str]", content_types: "Sequence[str]", file_types: Sequence[str]) -> Union[str, None]:
 
     r = requests.head(url, allow_redirects=True, headers=req_headers)
     r.raise_for_status()
@@ -321,7 +327,7 @@ def download_temp(url, chunk_size=8192):
 #########################################################################################
 
 
-def open_addon_window(name):
+def open_addon_window(name: str) -> None:
     bpy.ops.screen.userpref_show('INVOKE_DEFAULT')
     bpy.context.preferences.active_section = 'ADDONS'
     bpy.context.window_manager.addon_filter = 'All'
@@ -332,12 +338,13 @@ def open_addon_window(name):
         pass
 
 
-def get_addon_path(target):
+def get_addon_path(target: str) -> str:
 
     if target == 'DEFAULT':
         # don't use bpy.utils.script_paths("addons") because we may not be able to write to it.
         path_addons = bpy.utils.user_resource('SCRIPTS', path="addons", create=True)
     else:
+        assert bpy.context.preferences
         path_addons = bpy.context.preferences.filepaths.script_directory
         if path_addons:
             path_addons = os.path.join(path_addons, "addons")
@@ -390,6 +397,12 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
         default=False,
     )
 
+    if TYPE_CHECKING:
+        filepath: str
+        target: str
+        smart_extract: bool
+        overwrite: bool
+        enable: bool
 
     def menu_func(self, context):
         self.layout.separator()
