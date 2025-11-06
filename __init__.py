@@ -41,26 +41,26 @@ def get_bl_info(text):
 def resolve_url(url):
 
     p_url = urlparse(url)
-    
+
     if p_url.netloc == 'github.com':
-        
+
         path = p_url.path.strip("/")
         comps = path.split("/")
-        
+
         if path.endswith('.py'):
             comps[2] = 'raw'
             return p_url._replace(path="/".join(comps)).geturl()
-    
+
         branch = 'master'
         if "tree" in comps:
             idx = comps.index("tree")
             branch = comps[idx+1]
-        
+
         path = "/".join(comps[:2]) + '/archive/refs/heads/' + branch + '.zip'
         return p_url._replace(path=path).geturl()
-        
+
     # add other websites
-    
+
     return url
 
 
@@ -74,12 +74,12 @@ def remove_file(path_base, fname):
 
 
 def filter_zipfile(zfile, zipname):
-    
+
     # list .py files
-    scripts = [zinfo for zinfo in zfile.filelist 
+    scripts = [zinfo for zinfo in zfile.filelist
                 if not zinfo.is_dir() and zinfo.filename.lower().endswith('.py')
     ]
-    
+
     if not scripts:
         raise ValueError("No .py files in the Archive")
 
@@ -99,7 +99,7 @@ def filter_zipfile(zfile, zipname):
 
     if not init_files:
         raise ValueError("Multiple '.py' files, but no '__init__.py' files in the Archive")
-    
+
     hierarchially_sorted = sorted(init_files,
             key=lambda file: (os.path.dirname(file), os.path.basename(file))
     )
@@ -115,7 +115,7 @@ def filter_zipfile(zfile, zipname):
     if parent_dir.strip("/") == "": # if __init__.py is in root
         # use 'zipname' without .zip extension
         base_dir = os.path.splitext(zipname)[0]
-    
+
     file_to_extract = []
     # only extract the parent directory of modules
     for zinfo in zfile.filelist:
@@ -135,7 +135,7 @@ def filter_zipfile(zfile, zipname):
                 zinfo.filename = os.path.join(base_dir, parent_dir, filepath).replace("\\", "/")
                 file_to_extract.append(zinfo)
                 break
-    
+
     return file_to_extract
 
 def open_file(pyfile):
@@ -160,7 +160,7 @@ def open_file(pyfile):
                 filename = f[len(cache_path_prefix):]
                 cache_path = os.path.join(bpy.app.tempdir, f)
                 break
-        
+
         if not cache_path:
             url = resolve_url(pyfile)
             # also filters non .py or .zip files
@@ -171,7 +171,7 @@ def open_file(pyfile):
 
             if not filename:
                 raise ValueError(UNSUPPORTED_FILE_EXCEPTION_MSG)
-            
+
             with requests.get(url, allow_redirects=True, headers=HEADERS, stream=True) as r:
                 r.raise_for_status()
 
@@ -184,13 +184,13 @@ def open_file(pyfile):
 
                 for chunk in r.iter_content(chunk_size=8192):
                     data.write(chunk)
-            
+
                 data.close()
                 os.rename(temp_path, cache_path)
-        
+
         data = open(cache_path, 'rb')
-        
-        
+
+
     else:   # file path
         pyfile = pyfile.replace("\\", os.path.sep).replace("/", os.path.sep)
         pyfile = os.path.abspath(os.path.expanduser(os.path.expandvars(pyfile)))
@@ -198,7 +198,7 @@ def open_file(pyfile):
         # check extension
         if not any(pyfile.endswith(t) for t in file_types):
             raise ValueError(UNSUPPORTED_FILE_EXCEPTION_MSG)
-        
+
         # Check if we are installing from a target path,
         # doing so causes 2+ addons of same name or when the same from/to
         # location is used, removal of the file!
@@ -210,14 +210,14 @@ def open_file(pyfile):
 
         filename = os.path.basename(pyfile)
         data = open(pyfile, 'rb')
-    
+
     return filename, data
 
 
 def install_addon(pyfile, path_addons, overwrite=False, smart_extract=False):
 
     filename, data = open_file(pyfile)
-    
+
     ext = os.path.splitext(filename)[1]
     addons_new = {}
 
@@ -237,7 +237,7 @@ def install_addon(pyfile, path_addons, overwrite=False, smart_extract=False):
             raise ValueError(("File already installed to %r\n") % path_dest)
 
         addons_old = {mod.__name__ for mod in addon_utils.modules()}
-        
+
         with open(path_dest, 'wb') as fp:
             if isinstance(data, bytes):
                 fp.write(data)
@@ -261,12 +261,12 @@ def install_addon(pyfile, path_addons, overwrite=False, smart_extract=False):
                     path_dest = os.path.join(path_addons, zinfo.filename)
                     if os.path.exists(path_dest):
                         raise ValueError(("File already installed to %r\n") % path_dest)
-            
+
             addons_old = {mod.__name__ for mod in addon_utils.modules()}
 
             for zinfo in file_to_extract:
                 zfile.extract(zinfo, path_addons)
-            
+
             addons_new = {mod.__name__ for mod in addon_utils.modules()} - addons_old
 
     addons_new.discard("modules")
@@ -290,7 +290,7 @@ def get_filename_from_url(url, req_headers=None, content_types=None, file_types=
     if "content-disposition" in resp_headers:
         disp = resp_headers["content-disposition"]
         filename = disp.rsplit('filename=', 1)[-1].strip().strip('\"')
-    
+
     else:
         content_type = resp_headers["content-type"]
         if not content_types or any(t in content_type for t in content_types):
@@ -308,9 +308,9 @@ def download_temp(url, chunk_size=8192):
 
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        for chunk in r.iter_content(chunk_size=chunk_size): 
+        for chunk in r.iter_content(chunk_size=chunk_size):
             temp.write(chunk)
-    
+
     temp.seek(0)
 
     return temp
@@ -348,7 +348,7 @@ def get_addon_path(target):
 
     if not os.path.isdir(path_addons):
         os.makedirs(path_addons, exist_ok=True)
-    
+
     return path_addons
 
 
@@ -427,7 +427,7 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
                         info = addon_utils.module_bl_info(mod)
                         open_addon_window(info["name"])
                         break
-            
+
             # in case a new module path was created to install this addon.
             bpy.utils.refresh_script_paths()
 
