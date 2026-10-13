@@ -14,16 +14,17 @@ HEADERS = {
 
 UNSUPPORTED_FILE_EXCEPTION_MSG = "Not a .py or .zip file"
 
-import bpy
-import addon_utils
-import os, shutil
-import requests
-from urllib.parse import urlparse
-from io import BytesIO, BufferedReader
-from zipfile import ZipFile, ZipInfo
-from typing import TYPE_CHECKING, Union, Any
+import os
+import shutil
 from collections.abc import Sequence
+from io import BufferedReader, BytesIO
+from typing import TYPE_CHECKING, Any, Union
+from urllib.parse import urlparse
+from zipfile import ZipFile, ZipInfo
 
+import addon_utils
+import bpy
+import requests
 from bpy.app.translations import pgettext_tip as tip_
 
 
