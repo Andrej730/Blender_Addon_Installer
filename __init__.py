@@ -1,3 +1,4 @@
+# ty: ignore[invalid-type-form]
 bl_info = {
     "name": "Addon Installer",
     "author": "JayReigns",
@@ -398,6 +399,7 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
         enable: bool
 
     def menu_func(self, context):
+        assert self.layout
         self.layout.separator()
         self.layout.operator(ADI_OT_Addon_Installer.bl_idname, icon="IMPORT")
 
