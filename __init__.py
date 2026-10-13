@@ -1,4 +1,3 @@
-
 bl_info = {
     "name": "Addon Installer",
     "author": "JayReigns",
@@ -6,7 +5,7 @@ bl_info = {
     "blender": (2, 80, 0),
     "location": "TopBar > Edit > Install Addon",
     "description": "Quickly install Blender addons from Github link",
-    "category": "Development"
+    "category": "Development",
 }
 
 HEADERS = {
@@ -30,11 +29,11 @@ from bpy.app.translations import pgettext_tip as tip_
 
 def get_bl_info(text: str) -> "dict[str, Any]":
 
-    bl_idx = text.index("bl_info") # raise ValueError
-    s_idx  = text.index("{", bl_idx)
-    e_idx  = text.index("}", s_idx)
+    bl_idx = text.index("bl_info")  # raise ValueError
+    s_idx = text.index("{", bl_idx)
+    e_idx = text.index("}", s_idx)
 
-    bl_info = text[s_idx : e_idx+1]
+    bl_info = text[s_idx : e_idx + 1]
     bl_info = eval(bl_info)
 
     return bl_info
@@ -45,21 +44,20 @@ def resolve_url(url: str) -> str:
 
     p_url = urlparse(url)
 
-    if p_url.netloc == 'github.com':
-
+    if p_url.netloc == "github.com":
         path = p_url.path.strip("/")
         comps = path.split("/")
 
-        if path.endswith('.py'):
-            comps[2] = 'raw'
+        if path.endswith(".py"):
+            comps[2] = "raw"
             return p_url._replace(path="/".join(comps)).geturl()
 
-        branch = 'master'
+        branch = "master"
         if "tree" in comps:
             idx = comps.index("tree")
-            branch = comps[idx+1]
+            branch = comps[idx + 1]
 
-        path = "/".join(comps[:2]) + '/archive/refs/heads/' + branch + '.zip'
+        path = "/".join(comps[:2]) + "/archive/refs/heads/" + branch + ".zip"
         return p_url._replace(path=path).geturl()
 
     # add other websites
@@ -79,9 +77,7 @@ def remove_file(path_base: str, fname: str) -> None:
 def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
 
     # list .py files
-    scripts = [zinfo for zinfo in zfile.filelist
-                if not zinfo.is_dir() and zinfo.filename.lower().endswith('.py')
-    ]
+    scripts = [zinfo for zinfo in zfile.filelist if not zinfo.is_dir() and zinfo.filename.lower().endswith(".py")]
 
     if not scripts:
         raise ValueError("No .py files in the Archive")
@@ -96,16 +92,12 @@ def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
             zinfo.filename = dirname + "/__init__.py"
 
     # find __init__.py files
-    init_files = [zinfo.filename for zinfo in scripts \
-                if os.path.basename(zinfo.filename) == "__init__.py"
-    ]
+    init_files = [zinfo.filename for zinfo in scripts if os.path.basename(zinfo.filename) == "__init__.py"]
 
     if not init_files:
         raise ValueError("Multiple '.py' files, but no '__init__.py' files in the Archive")
 
-    hierarchially_sorted = sorted(init_files,
-            key=lambda file: (os.path.dirname(file), os.path.basename(file))
-    )
+    hierarchially_sorted = sorted(init_files, key=lambda file: (os.path.dirname(file), os.path.basename(file)))
     # remove child files
     module_files = [hierarchially_sorted[0]]
     for file in hierarchially_sorted[1:]:
@@ -115,7 +107,7 @@ def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
     base_dir = ""
     # get parent of first '__init__.py' in hierarchial order
     parent_dir = os.path.dirname(hierarchially_sorted[0])
-    if parent_dir.strip("/") == "": # if __init__.py is in root
+    if parent_dir.strip("/") == "":  # if __init__.py is in root
         # use 'zipname' without .zip extension
         base_dir = os.path.splitext(zipname)[0]
 
@@ -134,27 +126,31 @@ def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
 
                 # weird bug using 'os.path.join' in windows if filename starts with '/'
                 # like '/__init__.py', so use lstrip()
-                filepath = zinfo.filename[len(os.path.dirname(mod)):].lstrip("/")
+                filepath = zinfo.filename[len(os.path.dirname(mod)) :].lstrip("/")
                 zinfo.filename = os.path.join(base_dir, parent_dir, filepath).replace("\\", "/")
                 file_to_extract.append(zinfo)
                 break
 
     return file_to_extract
 
+
 def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
     """Returns filename, data(bytes if file is link else file object)"""
 
     content_types = ("text/plain", "application/zip", "application/octet-stream")
-    file_types = (".py", ".zip",)
+    file_types = (
+        ".py",
+        ".zip",
+    )
 
     filename = None
     blender_temp_dir: str = bpy.app.tempdir
-    if pyfile.startswith("http://") or pyfile.startswith("https://"): # URL
-
-        CACHE_FILENAME_FORMAT = "BLAI-{0}-{1}" # BLAI-HASH-filename
+    if pyfile.startswith("http://") or pyfile.startswith("https://"):  # URL
+        CACHE_FILENAME_FORMAT = "BLAI-{0}-{1}"  # BLAI-HASH-filename
         UNFINISHED_EXT = ".unfinished"
 
         from hashlib import md5
+
         pyfile_hash = md5(bytes(pyfile, "utf8")).hexdigest()
 
         cache_path: Union[str, None] = None
@@ -162,17 +158,16 @@ def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
         cache_path_prefix = CACHE_FILENAME_FORMAT.format(pyfile_hash, "")
         for f in os.listdir(blender_temp_dir):
             if f.startswith(cache_path_prefix) and not f.endswith(UNFINISHED_EXT):
-                filename = f[len(cache_path_prefix):]
+                filename = f[len(cache_path_prefix) :]
                 cache_path = os.path.join(blender_temp_dir, f)
                 break
 
         if not cache_path:
             url = resolve_url(pyfile)
             # also filters non .py or .zip files
-            filename = get_filename_from_url(url,
-                                req_headers=HEADERS,
-                                content_types=content_types,
-                                file_types=file_types)
+            filename = get_filename_from_url(
+                url, req_headers=HEADERS, content_types=content_types, file_types=file_types
+            )
 
             if not filename:
                 raise ValueError(UNSUPPORTED_FILE_EXCEPTION_MSG)
@@ -185,7 +180,7 @@ def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
                 temp_path = cache_path + UNFINISHED_EXT
 
                 # file gets deleted whenever blender closes or crashes
-                data = open(temp_path, 'wb')
+                data = open(temp_path, "wb")
 
                 for chunk in r.iter_content(chunk_size=8192):
                     data.write(chunk)
@@ -193,10 +188,9 @@ def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
                 data.close()
                 os.rename(temp_path, cache_path)
 
-        data = open(cache_path, 'rb')
+        data = open(cache_path, "rb")
 
-
-    else:   # file path
+    else:  # file path
         pyfile = pyfile.replace("\\", os.path.sep).replace("/", os.path.sep)
         pyfile = os.path.abspath(os.path.expanduser(os.path.expandvars(pyfile)))
 
@@ -214,7 +208,7 @@ def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
         # done checking for exceptional case
 
         filename = os.path.basename(pyfile)
-        data = open(pyfile, 'rb')
+        data = open(pyfile, "rb")
 
     assert filename
     return filename, data
@@ -229,11 +223,11 @@ def install_addon(pyfile: str, path_addons: str, overwrite: bool = False, smart_
 
     if ext == ".py":
         if smart_extract:
-            if filename.startswith('__'):   # '__init__.py'
+            if filename.startswith("__"):  # '__init__.py'
                 if not isinstance(data, bytes):
                     data = data.read()
                 bl_info = get_bl_info(str(data, "utf-8"))
-                filename = bl_info['name'] + ".py"
+                filename = bl_info["name"] + ".py"
 
         path_dest = os.path.join(path_addons, filename)
 
@@ -244,7 +238,7 @@ def install_addon(pyfile: str, path_addons: str, overwrite: bool = False, smart_
 
         addons_old = {mod.__name__ for mod in addon_utils.modules()}
 
-        with open(path_dest, 'wb') as fp:
+        with open(path_dest, "wb") as fp:
             if isinstance(data, bytes):
                 fp.write(data)
             else:
@@ -284,7 +278,9 @@ def install_addon(pyfile: str, path_addons: str, overwrite: bool = False, smart_
 #########################################################################################
 
 
-def get_filename_from_url(url: str, req_headers: "dict[str, str]", content_types: "Sequence[str]", file_types: Sequence[str]) -> Union[str, None]:
+def get_filename_from_url(
+    url: str, req_headers: "dict[str, str]", content_types: "Sequence[str]", file_types: Sequence[str]
+) -> Union[str, None]:
 
     r = requests.head(url, allow_redirects=True, headers=req_headers)
     r.raise_for_status()
@@ -295,7 +291,7 @@ def get_filename_from_url(url: str, req_headers: "dict[str, str]", content_types
 
     if "content-disposition" in resp_headers:
         disp = resp_headers["content-disposition"]
-        filename = disp.rsplit('filename=', 1)[-1].strip().strip('\"')
+        filename = disp.rsplit("filename=", 1)[-1].strip().strip('"')
 
     else:
         content_type = resp_headers["content-type"]
@@ -328,11 +324,11 @@ def download_temp(url, chunk_size=8192):
 
 
 def open_addon_window(name: str) -> None:
-    bpy.ops.screen.userpref_show('INVOKE_DEFAULT')
-    bpy.context.preferences.active_section = 'ADDONS'
-    bpy.context.window_manager.addon_filter = 'All'
+    bpy.ops.screen.userpref_show("INVOKE_DEFAULT")
+    bpy.context.preferences.active_section = "ADDONS"
+    bpy.context.window_manager.addon_filter = "All"
     bpy.context.window_manager.addon_search = name
-    try: # for newer Blender versions
+    try:  # for newer Blender versions
         bpy.context.preferences.view.show_addons_enabled_only = False
     except:
         pass
@@ -340,9 +336,9 @@ def open_addon_window(name: str) -> None:
 
 def get_addon_path(target: str) -> str:
 
-    if target == 'DEFAULT':
+    if target == "DEFAULT":
         # don't use bpy.utils.script_paths("addons") because we may not be able to write to it.
-        path_addons = bpy.utils.user_resource('SCRIPTS', path="addons", create=True)
+        path_addons = bpy.utils.user_resource("SCRIPTS", path="addons", create=True)
     else:
         assert bpy.context.preferences
         path_addons = bpy.context.preferences.filepaths.script_directory
@@ -366,6 +362,7 @@ def get_addon_path(target: str) -> str:
 
 class ADI_OT_Addon_Installer(bpy.types.Operator):
     """Install Addon from URL/Filepath"""
+
     bl_idname = "adi.addon_installer"
     bl_label = "Install Addon"
 
@@ -377,8 +374,8 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
         name="Target Path",
         description="Choose where to install",
         items=(
-            ('DEFAULT', "Default", ""),
-            ('PREFS', "User Prefs", ""),
+            ("DEFAULT", "Default", ""),
+            ("PREFS", "User Prefs", ""),
         ),
     )
     smart_extract: bpy.props.BoolProperty(
@@ -406,17 +403,17 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
 
     def menu_func(self, context):
         self.layout.separator()
-        self.layout.operator(ADI_OT_Addon_Installer.bl_idname, icon='IMPORT')
+        self.layout.operator(ADI_OT_Addon_Installer.bl_idname, icon="IMPORT")
 
     def invoke(self, context, event):
         wm = context.window_manager
-        self.filepath = wm.clipboard # copy link/path from clipboard
+        self.filepath = wm.clipboard  # copy link/path from clipboard
         return wm.invoke_props_dialog(self)
 
     def execute(self, context):
 
         try:
-            pyfile = self.filepath.strip("\"").strip("\'").replace("\\", "/").rstrip("/")
+            pyfile = self.filepath.strip('"').strip("'").replace("\\", "/").rstrip("/")
             path_addons = get_addon_path(self.target).replace("\\", "/").rstrip("/")
 
             addons_new = install_addon(pyfile, path_addons, self.overwrite, self.smart_extract)
@@ -447,20 +444,17 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
             bpy.ops.preferences.addon_refresh()
 
             # print message
-            msg = (
-                tip_("Modules Installed (%s) from %r into %r") %
-                (", ".join(sorted(addons_new)), pyfile, path_addons)
-            )
+            msg = tip_("Modules Installed (%s) from %r into %r") % (", ".join(sorted(addons_new)), pyfile, path_addons)
             # print(msg)
-            self.report({'INFO'}, msg)
+            self.report({"INFO"}, msg)
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             self.report({"ERROR"}, str(e))
-            return {'CANCELLED'}
+            return {"CANCELLED"}
 
-
-        return {'FINISHED'}
+        return {"FINISHED"}
 
 
 ##############################################################################
@@ -468,9 +462,7 @@ class ADI_OT_Addon_Installer(bpy.types.Operator):
 ##############################################################################
 
 
-classes = (
-    ADI_OT_Addon_Installer,
-)
+classes = (ADI_OT_Addon_Installer,)
 
 
 def register():
@@ -492,4 +484,4 @@ def unregister():
 if __name__ == "__main__":
     register()
     # test call
-    bpy.ops.adi.addon_installer('INVOKE_DEFAULT')
+    bpy.ops.adi.addon_installer("INVOKE_DEFAULT")
