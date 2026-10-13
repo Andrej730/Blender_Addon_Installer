@@ -28,7 +28,7 @@ import urllib.request
 
 import bpy
 
-url = "https://github.com/JayReigns/Blender_Addon_Installer/archive/refs/heads/main.zip"
+url = "https://github.com/Andrej730/Blender_Addon_Installer/archive/refs/heads/main.zip"
 
 # Download zip to temp file.
 temp_zip = os.path.join(tempfile.gettempdir(), "Blender_Addon_Installer.zip")
