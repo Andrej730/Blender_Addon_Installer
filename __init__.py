@@ -112,7 +112,7 @@ def filter_zipfile(zfile: ZipFile, zipname: str) -> "list[ZipInfo]":
         # use 'zipname' without .zip extension
         base_dir = os.path.splitext(zipname)[0]
 
-    file_to_extract: "list[ZipInfo]" = []
+    file_to_extract: list[ZipInfo] = []
     # only extract the parent directory of modules
     for zinfo in zfile.filelist:
         # if zinfo.is_dir():
@@ -146,7 +146,7 @@ def open_file(pyfile: str) -> "tuple[str, BufferedReader]":
 
     filename = None
     blender_temp_dir: str = bpy.app.tempdir
-    if pyfile.startswith("http://") or pyfile.startswith("https://"):  # URL
+    if pyfile.startswith(("http://", "https://")):  # URL
         CACHE_FILENAME_FORMAT = "BLAI-{0}-{1}"  # BLAI-HASH-filename
         UNFINISHED_EXT = ".unfinished"
 
@@ -223,12 +223,11 @@ def install_addon(pyfile: str, path_addons: str, overwrite: bool = False, smart_
     addons_new: set[str] = set()
 
     if ext == ".py":
-        if smart_extract:
-            if filename.startswith("__"):  # '__init__.py'
-                if not isinstance(data, bytes):
-                    data = data.read()
-                bl_info = get_bl_info(str(data, "utf-8"))
-                filename = bl_info["name"] + ".py"
+        if smart_extract and filename.startswith("__"):  # '__init__.py'
+            if not isinstance(data, bytes):
+                data = data.read()
+            bl_info = get_bl_info(str(data, "utf-8"))
+            filename = bl_info["name"] + ".py"
 
         path_dest = os.path.join(path_addons, filename)
 
@@ -329,10 +328,7 @@ def open_addon_window(name: str) -> None:
     bpy.context.preferences.active_section = "ADDONS"
     bpy.context.window_manager.addon_filter = "All"
     bpy.context.window_manager.addon_search = name
-    try:  # for newer Blender versions
-        bpy.context.preferences.view.show_addons_enabled_only = False
-    except:
-        pass
+    bpy.context.preferences.view.show_addons_enabled_only = False
 
 
 def get_addon_path(target: str) -> str:
@@ -347,8 +343,7 @@ def get_addon_path(target: str) -> str:
             path_addons = os.path.join(path_addons, "addons")
 
     if not path_addons:
-        if not path_addons:
-            raise ValueError("Failed to get add-ons path")
+        raise ValueError("Failed to get add-ons path")
 
     if not os.path.isdir(path_addons):
         os.makedirs(path_addons, exist_ok=True)
